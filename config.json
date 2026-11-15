@@ -1,0 +1,8 @@
+{
+  "startEquity": 300,
+  "symbols": ["SOLUSDT", "XRPUSDT", "DOGEUSDT"],
+  "perLevelPct": 0.02,
+  "levels": 25,
+  "band": 0.1,
+  "startMs": 1790849977995
+}

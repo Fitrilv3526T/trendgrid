@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrendGrid Paper Bot</title>
+<style>
+:root{--bg:#0e1117;--panel:#161b24;--line:#262d3a;--txt:#e6e9ef;--dim:#8b95a5;--green:#4ade80;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa}
+@media (prefers-color-scheme: light){:root{--bg:#f5f6f8;--panel:#fff;--line:#dfe3ea;--txt:#171b22;--dim:#5d6676;--green:#15803d;--red:#b91c1c;--amber:#b45309;--blue:#1d4ed8}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1250px;margin:0 auto;padding:14px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px}
+h1{font-size:18px;margin:0}h1 small{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+.status{color:var(--dim);font-size:12px}.status.ok{color:var(--green)}.status.bad{color:var(--red)}
+button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;font:inherit}button:hover{border-color:var(--blue)}
+.strip{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+.strip b{font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px}.card .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}.card .v{font-size:17px;font-weight:600}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}.tabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}th{color:var(--dim);font-weight:500;text-align:left;border-bottom:1px solid var(--line);padding:5px 8px}td{padding:5px 8px;border-bottom:1px solid var(--line)}
+.pos{color:var(--green)}.neg{color:var(--red)}.dim{color:var(--dim)}.warnc{color:var(--amber)}
+.tag{padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600}.tag.long{background:rgba(74,222,128,.15);color:var(--green)}.tag.short{background:rgba(248,113,113,.15);color:var(--red)}.tag.idle{background:rgba(139,149,165,.2);color:var(--dim)}
+.hint{color:var(--dim);font-size:12px;margin:0 0 8px}.warn{background:rgba(251,191,36,.12);border:1px solid var(--amber);color:var(--amber);border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12.5px}
+.symhead{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;margin:12px 0 4px;font-size:13px}
+.symhead h3{margin:0;font-size:14px}
+.gridbar{position:relative;height:14px;background:linear-gradient(90deg,rgba(248,113,113,.18),rgba(139,149,165,.12),rgba(74,222,128,.18));border-radius:7px;margin:4px 0 8px;max-width:640px}
+.gridbar .px{position:absolute;top:-3px;width:3px;height:20px;background:var(--blue);border-radius:2px}
+.gridbar .an{position:absolute;top:-3px;width:2px;height:20px;background:var(--amber)}
+canvas{width:100%;max-width:1000px;height:auto}
+.rules h3{margin:14px 0 4px;font-size:14px}.rules p,.rules li{font-size:13px}.rules ul{margin:4px 0 4px 18px;padding:0}
+a{color:var(--blue)}
+footer{color:var(--dim);font-size:11.5px;margin-top:12px}
+</style></head><body><div class="wrap">
+<header><h1>TrendGrid Paper Bot <small>adaptive directional grid &middot; runs by itself on GitHub every 30 min &middot; paper trading only</small></h1>
+<div><span id="status" class="status">Loading...</span> <button id="btnRefresh">Reload data</button></div></header>
+<div id="errs"></div>
+<div class="strip" id="rg">Loading grids...</div>
+<div class="cards">
+<div class="card"><div class="k">Paper equity</div><div class="v" id="kEq">-</div></div>
+<div class="card"><div class="k">Return</div><div class="v" id="kRet">-</div></div>
+<div class="card"><div class="k">This month</div><div class="v" id="kMon">-</div></div>
+<div class="card"><div class="k">Last 30 days</div><div class="v" id="kL30">-</div></div>
+<div class="card"><div class="k">Max drawdown</div><div class="v" id="kDD">-</div></div>
+<div class="card"><div class="k">RTs today</div><div class="v" id="kTod" style="font-size:14px">-</div></div>
+<div class="card"><div class="k">RTs / day</div><div class="v" id="kRpd">-</div></div>
+<div class="card"><div class="k">Trades total</div><div class="v" id="kTr">-</div></div>
+<div class="card"><div class="k">Win rate</div><div class="v" id="kWin">-</div></div>
+<div class="card"><div class="k">Avg P/L per RT</div><div class="v" id="kAvg">-</div></div></div>
+<div class="status" id="since" style="margin-bottom:6px"></div>
+<div class="tabs"><button data-t="grids" class="on">Grids &amp; lots</button><button data-t="closed">Closed trades</button><button data-t="equity">Equity</button><button data-t="days">Day log</button><button data-t="events">Events</button><button data-t="rules">Rules &amp; settings</button></div>
+<div class="panel" id="tabBody">Loading...</div>
+<footer>Research tool. Paper trading only: no orders are placed and no API keys are used. Simulated maker fills at grid level prices along hourly candles; taker + slippage on forced exits; real funding charged when available. Past or simulated results are not a promise of future results; this is not financial advice. Data: Binance public market data, replayed by a scheduled job and saved in this repo.</footer>
+</div>
+<script>
+/* ================= dashboard (reads data/state.json written by the scheduled scanner) ================= */
+const $ = (id) => document.getElementById(id);
+let S = { state: null, tab: 'grids' };
+const fp = (x) => !Number.isFinite(x) ? '-' : x >= 100 ? x.toFixed(2) : x >= 1 ? x.toFixed(4) : x >= 0.01 ? x.toFixed(5) : x.toPrecision(4);
+const usd = (x) => !Number.isFinite(x) ? '-' : (x < 0 ? '-' : '') + '$' + Math.abs(x).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+const pct = (x, d = 1) => !Number.isFinite(x) ? '-' : (x > 0 ? '+' : '') + (x * 100).toFixed(d) + '%';
+const tstr = (ms) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + 'Z';
+const dstr = (ms) => new Date(ms).toISOString().slice(0, 10);
+const cls = (x) => x > 0 ? 'pos' : x < 0 ? 'neg' : '';
+function sideTag(s) { return s === 1 ? '<span class="tag long">LONG</span>' : '<span class="tag short">SHORT</span>'; }
+const shortName = (s) => s.replace('USDT', '');
+
+function render() {
+  const st = S.state, c = st.cfg, t = st.totals;
+  $('kEq').textContent = usd(st.equityNow);
+  $('kRet').textContent = pct(st.returnPct / 100); $('kRet').className = 'v ' + cls(st.returnPct);
+  $('kMon').textContent = pct(st.monthPct / 100); $('kMon').className = 'v ' + cls(st.monthPct);
+  $('kL30').textContent = pct(st.last30Pct / 100); $('kL30').className = 'v ' + cls(st.last30Pct);
+  $('kDD').textContent = (st.maxDD * 100).toFixed(1) + '%';
+  $('kTod').textContent = t.todayRts + ' RTs ' + (t.todayPnl >= 0 ? '+' : '') + t.todayPnl.toFixed(2) + ' U';
+  $('kTod').className = 'v ' + cls(t.todayPnl);
+  $('kRpd').textContent = t.rtsPerDay30.toFixed(1);
+  $('kTr').textContent = t.trades;
+  $('kWin').textContent = t.winRate.toFixed(1) + '%';
+  $('kAvg').textContent = (t.avgPnl >= 0 ? '+' : '') + t.avgPnl.toFixed(4) + ' U';
+  $('since').textContent = 'Paper account since ' + tstr(st.cfg.startMs) + ' (' + t.daysRunning + ' days) · engine replay is deterministic: the account is rebuilt from candles on every scan';
+
+  // regime strip: one line per symbol
+  let rg = '';
+  for (const [s, x] of Object.entries(st.symbols)) {
+    const paused = x.pausedForDay || (x.pausedUntilMs && x.pausedUntilMs > Date.now());
+    rg += `<b>${shortName(s)}</b> ${x.dir === 1 ? '<span class="tag long">LONG GRID</span>' : '<span class="tag short">SHORT GRID</span>'}` +
+      (paused ? ' <span class="tag idle">PAUSED</span>' : '') +
+      ` · price ${fp(x.lastPx)} = ${pct(x.priceVsEmaPct / 100, 1)} vs EMA${c.emaLen}` +
+      ` · ${x.openLots} lots open · grid drift ${pct(x.driftPct / 100, 1)}<br>`;
+  }
+  rg += `<span class="dim">size ${usd(c.perLevelPct * st.equityNow)} per level (re-sized weekly) · fees paid ${usd(t.feesPaid)} · funding ${t.fundTotal >= 0 ? '+' : ''}${t.fundTotal.toFixed(2)} U · ${st.fundNote}</span>`;
+  $('rg').innerHTML = rg;
+
+  const age = (Date.now() - st.updatedMs) / 3600e3, msgs = [];
+  if (age > 8) msgs.push(`Data is ${age.toFixed(0)} hours old. The scanner may be paused: open the repo's Actions tab and re-enable the "TrendGrid scan" workflow.`);
+  if (st.killed) msgs.push(`Monthly kill-switch active: everything flat until ${tstr(st.killUntilMs)}.`);
+  msgs.push(`Data source: Binance ${st.source}.`);
+  $('errs').innerHTML = msgs.map((x, i) => `<div class="${i < msgs.length - 1 ? 'warn' : 'hint'}">${x}</div>`).join('');
+  renderTab();
+}
+
+function renderTab() {
+  const st = S.state, c = st.cfg, t = st.totals, el = $('tabBody'), tab = S.tab;
+  let h = '';
+  if (tab === 'grids') {
+    h = `<p class="hint">Each coin runs a ${c.levels}-level grid spanning &plusmn;${(c.band * 100).toFixed(0)}% around its anchor (amber mark). Blue mark = current price. Lots fill one level at a time with maker orders; the direction flips daily with the EMA${c.emaLen} trend filter.</p>`;
+    for (const [s, x] of Object.entries(st.symbols)) {
+      const lo = x.anchor * (1 - c.band), hi = x.anchor * (1 + c.band);
+      const pos = Math.max(0, Math.min(1, (x.lastPx - lo) / (hi - lo)));
+      const apos = 0.5;
+      h += `<div class="symhead"><h3>${s}</h3>${x.dir === 1 ? '<span class="tag long">LONG GRID</span>' : '<span class="tag short">SHORT GRID</span>'}` +
+        (x.pausedForDay || (x.pausedUntilMs && x.pausedUntilMs > Date.now()) ? ' <span class="tag idle">PAUSED (risk rule)</span>' : '') +
+        `<span class="dim">anchor ${fp(x.anchor)} · range ${fp(lo)} – ${fp(hi)} · price ${fp(x.lastPx)} · today: ${x.rtsToday} RTs, ${x.stopoutsToday} stop-outs, ${x.consecLosses} losses in a row</span></div>`;
+      h += `<div class="gridbar"><span class="an" style="left:calc(${(apos * 100).toFixed(1)}% - 1px)"></span><span class="px" style="left:calc(${(pos * 100).toFixed(1)}% - 1px)"></span></div>`;
+      if (x.lots.length) {
+        h += `<table><thead><tr><th>Level</th><th>Side</th><th>Entry</th><th>Last</th><th>Qty</th><th>Unrealized</th><th>Funding</th><th>Opened</th></tr></thead><tbody>` +
+          x.lots.map(l => `<tr><td class="dim">${l.lvl}</td><td>${sideTag(x.dir)}</td><td>${fp(l.entry)}</td><td>${fp(x.lastPx)}</td><td>${l.qty.toFixed(6)}</td><td class="${cls(l.unreal)}">${usd(l.unreal)}</td><td>${usd(l.fund)}</td><td>${tstr(l.openMs)}</td></tr>`).join('') + '</tbody></table>';
+      } else h += '<p class="hint">No open lots right now.</p>';
+    }
+  } else if (tab === 'closed') {
+    h = `<div class="bar"><a href="data/closed_trades.csv" download><button>Download full CSV</button></a></div>` +
+      `<p class="hint">Every closed round trip and forced exit. "grid" = a level pair completed (maker/maker). Others are risk exits (maker/taker + slippage).</p>` +
+      `<table><thead><tr><th>Closed</th><th>Coin</th><th>Side</th><th>Why</th><th>Entry</th><th>Exit</th><th>P/L</th><th>Funding</th></tr></thead><tbody>` +
+      st.closed.slice().reverse().map(p => `<tr><td>${tstr(p.closeMs)}</td><td><b>${shortName(p.sym)}</b></td><td>${sideTag(p.side)}</td><td class="dim">${p.reason}</td><td>${fp(p.entry)}</td><td>${fp(p.exit)}</td><td class="${cls(p.pnl)}">${usd(p.pnl)}</td><td>${usd(p.fund)}</td></tr>`).join('') + '</tbody></table>';
+  } else if (tab === 'equity') {
+    h = '<canvas id="cv" width="1000" height="320"></canvas><p class="hint">Daily equity (cash + open lots marked at the day\'s last price). The account is rebuilt deterministically from candles on every scan, so this curve is reproducible.</p>';
+  } else if (tab === 'days') {
+    h = `<div class="bar"><a href="data/day_log.csv" download><button>Download full CSV</button></a></div>` +
+      `<table><thead><tr><th>Day</th><th>RTs</th><th>Trades</th><th>Realized</th><th>Equity</th><th>Stop-outs</th><th>Done for the day</th><th>Grids</th></tr></thead><tbody>` +
+      st.days.slice().reverse().map(d => `<tr><td>${dstr(d.day)}</td><td>${d.rts}</td><td>${d.trades}</td><td class="${cls(d.realized)}">${usd(d.realized)}</td><td>${usd(d.eqEnd)}</td><td>${d.stopouts}</td><td class="${d.dayStop ? 'warnc' : 'dim'}">${d.dayStop || '-'}</td><td class="dim">${Object.entries(d.dirs).map(([s, v]) => shortName(s).slice(0, 3) + ':' + (v === 1 ? 'L' : 'S')).join(' ')}</td></tr>`).join('') + '</tbody></table>';
+  } else if (tab === 'events') {
+    h = `<table><thead><tr><th>Time</th><th>What</th></tr></thead><tbody>` +
+      st.events.slice().reverse().map(e => {
+        let d = '';
+        if (e.type === 'flip') d = `<b>${shortName(e.sym)}</b> direction flip &rarr; ${e.dir === 1 ? 'LONG grid' : 'SHORT grid'} at ${fp(e.px)}`;
+        else if (e.type === 'slide') d = `<b>${shortName(e.sym)}</b> grid slid (trend run locked) to ${fp(e.px)}`;
+        else if (e.type === 'stopout') d = `<b>${shortName(e.sym)}</b> grid stop-out at ${fp(e.px)} &mdash; flat for 24h`;
+        else if (e.type === 'daystop') d = `<b>${e.sym === 'ALL' ? 'PORTFOLIO' : shortName(e.sym)}</b> done for the day (${e.why})` + (Number.isFinite(e.eq) ? ` · equity ${usd(e.eq)}` : '');
+        else if (e.type === 'resize') d = `weekly re-size &rarr; ${usd(e.perLevel)} per level (equity ${usd(e.eq)})`;
+        else if (e.type === 'kill') d = `MONTHLY KILL-SWITCH at equity ${usd(e.eq)} &mdash; flat until ${tstr(e.until)}`;
+        else if (e.type === 'resume') d = `kill-switch over, grids re-anchored (equity ${usd(e.eq)})`;
+        else d = JSON.stringify(e);
+        return `<tr><td>${tstr(e.ms)}</td><td>${d}</td></tr>`;
+      }).join('') + '</tbody></table>';
+  } else if (tab === 'rules') {
+    h = RULES_HTML(st, c, t);
+  }
+  el.innerHTML = h;
+  if (tab === 'equity') drawEquity();
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+}
+
+function drawEquity() {
+  const cv = $('cv'); if (!cv) return; const g = cv.getContext('2d'), W = cv.width, H = cv.height, e = S.state.equity, st0 = S.state.cfg.startEquity;
+  g.clearRect(0, 0, W, H); g.fillStyle = '#9aa4b2'; g.font = '12px sans-serif';
+  if (e.length < 2) { g.fillText('Not enough data yet (needs at least 2 days).', 20, 30); return; }
+  const mn = Math.min(...e.map(x => x.eq), st0), mx = Math.max(...e.map(x => x.eq), st0), pad = 40;
+  const y = v => H - pad - (v - mn) / (mx - mn || 1) * (H - 2 * pad), x = i => pad + i / (e.length - 1) * (W - 2 * pad);
+  g.strokeStyle = '#2a3140'; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(pad, y(st0)); g.lineTo(W - pad, y(st0)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = '#4ade80'; g.lineWidth = 2; g.beginPath(); e.forEach((p, i) => i ? g.lineTo(x(i), y(p.eq)) : g.moveTo(x(i), y(p.eq))); g.stroke();
+  g.fillText(usd(mx), 4, y(mx) + 4); g.fillText(usd(mn), 4, y(mn) + 4);
+  g.fillText(dstr(e[0].t), pad, H - 10); g.fillText(dstr(e[e.length - 1].t), W - pad - 70, H - 10);
+}
+
+function RULES_HTML(st, c, t) {
+  return `<div class="rules">
+  <h3>The system (TrendGrid)</h3>
+  <p><b>Adaptive directional grid.</b> Each coin runs ${c.levels} limit levels spanning &plusmn;${(c.band * 100).toFixed(0)}% around an anchor price, ${usd(c.perLevelPct * st.equityNow)} notional per level (2% of equity, re-sized every Monday). Fills are maker orders at the level prices.</p>
+  <p><b>Direction.</b> Daily at 00:00 UTC the bot compares yesterday's close with the coin's EMA${c.emaLen}: above it the grid buys dips / sells bumps; below it the grid sells bumps / buys back lower. The comparison uses only the PRIOR day's close (no lookahead). Currently every coin is far below its EMA${c.emaLen}, so all grids are short.</p>
+  <p><b>Slide.</b> When price runs ${(c.trailFrac * 100).toFixed(0)}% of the half-band in the grid's favour, the grid flattens and re-anchors halfway to price, locking the trend run. An adverse break beyond the band + ${(c.buf * 100).toFixed(0)}% flattens everything and pauses that coin for 24h (a "stop-out").</p>
+  <p><b>Risk rules (your daily stop, formalized).</b> A coin is done for the day after ${c.maxConsecLosses} losing trades in a row or ${c.maxStopoutsPerDay} stop-outs. The whole account is done for the day at -${(c.maxDailyLossPct * 100).toFixed(1)}% equity from the day's start. A month down -${(c.monthlyKillPct * 100).toFixed(0)}% means everything flat for ${c.killIdleDays} days (kill-switch). Everything resumes automatically.</p>
+  <p><b>Costs.</b> Maker ${(c.makerFee * 100).toFixed(3)}% per fill, taker ${(c.takerFee * 100).toFixed(3)}% + ${(c.slip * 100).toFixed(1)}% slippage on every forced exit, real funding every 8h when the futures API is reachable. ${st.fundNote}</p>
+  <h3>What the recent validation said</h3>
+  <p>Over the 60 days to 15 Nov 2026 (a violent downtrend: SOL -31%, XRP -27%, DOGE -28%), the engine with these exact rules on the three default coins produced roughly +5% net of all costs, while a plain always-long grid lost 8-13%. The 45-day pre-filled history on this page shows the shape of it: long grids early October, stop-outs and day-stops capped the crash, direction flipped short on 10 October, and the short grids earned it back. ${t.rtsPerDay30.toFixed(0)} round trips per day, ${t.winRate.toFixed(0)}% of trades green, average win far smaller than the rare forced loss.</p>
+  <p><b>Treat all of that as an upper bound.</b> The fill model is optimistic (maker fills at exact level prices), and this strategy harvests volatility - a quiet, trendless month can bleed small. Give the paper account 3 months and 500+ trades before believing it.</p>
+  <h3>Paper-trading assumptions</h3>
+  <ul><li>Fills are simulated along each hourly candle's path (open&rarr;low&rarr;high&rarr;close or open&rarr;high&rarr;low&rarr;close) at the exact level prices. Real maker queues fill slightly worse.</li>
+  <li>The account is deterministically rebuilt from candles on every scan (every 30 min), so nothing depends on a server staying up. The last candle may still be forming.</li>
+  <li>This page places NO real orders and uses no API keys. Going live later is a separate step (VPS + trade-only exchange API keys) - run the paper account first.</li></ul>
+  <h3>Settings</h3>
+  <p>Settings live in <code>config.json</code> in your GitHub repo (start equity, coins, per-level %, band, risk thresholds). Edit the file on GitHub and the next scan recomputes the whole account. To restart the account from today, delete the <code>startMs</code> line.</p></div>`;
+}
+
+async function load() {
+  try {
+    const r = await fetch('data/state.json?t=' + Date.now()); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const st = await r.json(); S.state = st;
+    $('status').textContent = 'Last scan: ' + tstr(st.updatedMs); $('status').className = 'status ok';
+    render();
+  } catch (e) { $('status').textContent = 'No data yet (' + e.message + '). Run the workflow once from the Actions tab.'; $('status').className = 'status bad'; }
+}
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; if (S.state) renderTab(); });
+  $('btnRefresh').onclick = load; load(); setInterval(load, 5 * 60000);
+});
+</script></body></html>
